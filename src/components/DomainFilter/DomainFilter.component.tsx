@@ -1,75 +1,76 @@
 import { useEffect, useState } from "react";
 
 interface State {
-  countries: string[];
-  classifications: string[];
-  subClassifications: string[];
+  name: string;
+  delimiter: string;
+  values: string[];
 }
 
 interface Props {
   domains?: string[];
+  pattern: string;
+}
+function getSelectorFromPattern(pattern: string) {
+  // Match  {...} => to get code
+  const codeMatches = pattern.match(/{([^}]+)}/g);
+
+  // everything outside the {...} => to get delimiter
+  const delimiterMatches = pattern.match(/[^{}]+(?=\{|$)/g);
+  const newSelector: State[] = [];
+  if (codeMatches) {
+    for (let i = 0; i < codeMatches.length; i++) {
+      const delimiter = delimiterMatches ? delimiterMatches[i] : "";
+      // We remove the {} from ex: {country code} and
+      newSelector.push({
+        name: codeMatches[i].slice(1, -1),
+        delimiter,
+        values: [],
+      });
+    }
+  }
+  return newSelector;
+}
+function getOptFromDomains(domains: string[], selectors: State[]) {
+  domains?.forEach((domain) => {
+    selectors.forEach((selector, index) => {
+      let newValue = "";
+      if (index === 0) {
+        newValue = selector.delimiter
+          ? domain.split(selector.delimiter)[0]
+          : domain;
+      } else {
+        if (selector.delimiter) {
+          newValue = domain
+            .split(selectors[index - 1].delimiter)[1]
+            .split(selector.delimiter)[0];
+        } else newValue = domain.split(selectors[index - 1].delimiter)[1];
+      }
+      if (!selector.values.includes(newValue)) selector.values.push(newValue);
+    });
+  });
+  return selectors;
 }
 
-const DomainFilter = (props: Props) => {
-  const [state, setState] = useState<State>({
-    countries: [],
-    classifications: [],
-    subClassifications: [],
-  });
+const DomainFilter = ({ domains, pattern }: Props) => {
+  const [selectors, setSelectors] = useState<State[]>([]);
 
   useEffect(() => {
-    const domains = props?.domains ?? [];
-    const countries: string[] = [];
-    const classifications: string[] = [];
-    const subClassifications: string[] = [];
-
-    for (let i = 0; i < domains.length; i++) {
-      if (countries.indexOf(domains[i].substring(0, 2)) <= 0) {
-        countries.push(domains[i].substring(0, 2));
-      }
-      classifications.push(domains[i].substring(3, 5));
-      let flag = false;
-      for (let j = 0; j < subClassifications.length; j++) {
-        if (subClassifications[j] === domains[i].substring(6)) {
-          flag = true;
-          break;
-        }
-      }
-      if (!flag) {
-        subClassifications.push(domains[i].substring(6));
-      }
-    }
-    setState({
-      countries: countries,
-      classifications: classifications.filter((e, i, l) => l.indexOf(e) === i),
-      subClassifications: subClassifications,
-    });
-  }, [props?.domains]);
+    setSelectors(getOptFromDomains(domains!, getSelectorFromPattern(pattern)));
+  }, [domains, pattern]);
 
   return (
-    <>
-      <select name="countries" multiple>
-        {state.countries.map((country) => (
-          <option value={country} key={country}>
-            {country}
-          </option>
-        ))}
-      </select>
-      <select name="classifications" multiple>
-        {state.classifications.map((classification) => (
-          <option value={classification} key={classification}>
-            {classification}
-          </option>
-        ))}
-      </select>
-      <select name="subClassifications" multiple>
-        {state.subClassifications.map((subClassification) => (
-          <option value={subClassification} key={subClassification}>
-            {subClassification}
-          </option>
-        ))}
-      </select>
-    </>
+    <div>
+      {selectors.map((selector, index) => (
+        <select name={selector.name} multiple key={index}>
+          {selector.name}
+          {selector.values.map((opt) => (
+            <option value={opt} key={opt}>
+              {opt}
+            </option>
+          ))}
+        </select>
+      ))}
+    </div>
   );
 };
 
